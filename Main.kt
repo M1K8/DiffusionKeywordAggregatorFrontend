@@ -21,7 +21,7 @@ class Main {
         var chart : XYChart? = null
         var sw : SwingWrapper<XYChart?>? = null
 
-        //start half an hour in the past
+        //start 30 seconds in the past
         val start = Date(System.currentTimeMillis() - 300000)
 
         var xResultsT : MutableList<Date> = mutableListOf(start)
@@ -29,6 +29,8 @@ class Main {
 
         var xResultsR : MutableList<Date> = mutableListOf(start)
         var yResultsR : MutableList<Int> = mutableListOf(0)
+
+        var keyword = ""
 
 
         class JsonStream : Topics.ValueStream<JSON> {
@@ -110,14 +112,15 @@ class Main {
 
 
         private fun showChart() {
-            chart = XYChartBuilder().width(400).height(100).title("Keyword Aggregator Demo").xAxisTitle("Time").yAxisTitle("Occurrences").build().also {
-                it.addSeries("Twitter",   xResultsT, yResultsT)
+            chart = XYChartBuilder().width(1280).height(720).title("Keyword Aggregator Demo - $keyword").xAxisTitle("Time (hh:mm:ss)").yAxisTitle("Occurrences (Avg per 10 seconds)").build().also {
                 it.addSeries("Reddit",  xResultsR, yResultsR)
+                it.addSeries("Twitter",   xResultsT, yResultsT)
             }
             chart?.styler?.apply {
                 legendPosition = Styler.LegendPosition.InsideNE
                 defaultSeriesRenderStyle = XYSeries.XYSeriesRenderStyle.Area
-                yAxisDecimalPattern = "#"
+                yAxisDecimalPattern = "#.#"
+                yAxisTickMarkSpacingHint = 50
             }
             sw = SwingWrapper(chart).also {
                 it.displayChart()
@@ -126,7 +129,9 @@ class Main {
 
         @JvmStatic
         fun main(args: Array<String>) {
-            showChart()
+            keyword = if (args.isNotEmpty()) {
+                args[0]
+            } else "apple"
             println("Starting...")
             runBlocking { initStuff() }
             println("Done setting up handlers!")
@@ -136,16 +141,17 @@ class Main {
             val topJ = Topics::class.java
 
 
-            session.feature(TopicControl::class.java).removeTopics("yeet")
+            session.feature(TopicControl::class.java).removeTopics(keyword)
             session.feature(TopicControl::class.java).removeTopics("count")
 
-            session.feature(topJ).addStream("yeet", JSON::class.java, JsonStream())
-            session.feature(topJ).createTopicView("count", "map >yeet to count as <value(/info)>")
+            session.feature(topJ).addStream(keyword, JSON::class.java, JsonStream())
+            session.feature(topJ).createTopicView("count", "map >$keyword to count as <value(/info)>")
 
             session.feature(topJ).addStream("count", JSON::class.java, JsonStream())
 
             session.feature(topJ).subscribe("count")
             println("Subbed!")
+            showChart()
 
 
             Thread.sleep(Long.MAX_VALUE)
