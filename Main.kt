@@ -20,15 +20,16 @@ class Main {
     companion object {
         var chart : XYChart? = null
         var sw : SwingWrapper<XYChart?>? = null
+        val topics = mutableListOf("");
 
         //start 30 seconds in the past
-        val start = Date(System.currentTimeMillis() - 300000)
+        private val start = Date(System.currentTimeMillis() - 300000)
 
-        var xResultsT : MutableList<Date> = mutableListOf(start)
-        var yResultsT : MutableList<Int> = mutableListOf(0)
 
-        var xResultsR : MutableList<Date> = mutableListOf(start)
-        var yResultsR : MutableList<Int> = mutableListOf(0)
+        // topic : <reddit, twitter>
+        var xResults : MutableMap<String,MutableList<MutableList<Date>>>? = mutableMapOf(Pair("", mutableListOf(mutableListOf(Date(0)))))// = HashMap("reddit"(mutableListOf(start)))
+
+        var yResults : MutableMap<String,MutableList<MutableList<Int>>>? = mutableMapOf(Pair("", mutableListOf(mutableListOf(0))))
 
         var keyword = ""
 
@@ -53,6 +54,27 @@ class Main {
                     newValue: JSON) {
                 println("New Value of $topicPath is ${newValue.toJsonString()}")
 
+                if (! topics.contains(topicPath))
+                {
+                    topics.add(topicPath)
+                    println("ye");
+                    xResults?.apply {
+                        put(topicPath, mutableListOf(mutableListOf(start)))
+                        get(topicPath)?.add(mutableListOf(start))
+                    }
+
+                    yResults?.apply {
+                        put(topicPath, mutableListOf(mutableListOf(0)))
+                        get(topicPath)?.add(mutableListOf(0))
+                    }
+
+                    chart?.addSeries("$topicPath- Reddit",  xResults!![topicPath]!![0] , yResults!![topicPath]!![0])
+
+                    chart?.addSeries("$topicPath- Twitter", xResults!![topicPath]!![1] , yResults!![topicPath]!![1])
+
+                }
+
+
 
                 val e = JSONObject(newValue.toJsonString())
 
@@ -62,18 +84,18 @@ class Main {
 
                 when (e.getString("website")) {
                     "reddit" -> {
-                        yResultsR.add(count)
+                        yResults?.get(topicPath)!![0].add(count)
                         println(Date(time))
-                        xResultsR.add(Date(time))
+                        xResults?.get(topicPath)!![0].add(Date(time))
 
-                        chart?.updateXYSeries("Reddit", xResultsR , yResultsR, null)
+                        chart?.updateXYSeries("$topicPath- Reddit", xResults?.get(topicPath)!![0] , yResults?.get(topicPath)!![0], null)
                     }
                     "twitter" -> {
-                        yResultsT.add(count)
+                        yResults?.get(topicPath)!![1].add(count)
                         println(Date(time))
-                        xResultsT.add(Date(time))
+                        xResults?.get(topicPath)!![1].add(Date(time))
 
-                        chart?.updateXYSeries("Twitter", xResultsT , yResultsT, null)
+                        chart?.updateXYSeries("$topicPath- Twitter", xResults?.get(topicPath)!![1] , yResults?.get(topicPath)!![1], null)
                     }
                 }
 
@@ -112,16 +134,14 @@ class Main {
 
 
         private fun showChart() {
-            chart = XYChartBuilder().width(1280).height(720).title("Keyword Aggregator Demo - $keyword").xAxisTitle("Time (hh:mm:ss)").yAxisTitle("Occurrences (Avg per 10 seconds)").build().also {
-                it.addSeries("Reddit",  xResultsR, yResultsR)
-                it.addSeries("Twitter",   xResultsT, yResultsT)
-            }
             chart?.styler?.apply {
                 legendPosition = Styler.LegendPosition.InsideNE
                 defaultSeriesRenderStyle = XYSeries.XYSeriesRenderStyle.Area
                 yAxisDecimalPattern = "#.#"
                 yAxisTickMarkSpacingHint = 50
             }
+
+
             sw = SwingWrapper(chart).also {
                 it.displayChart()
             }
@@ -135,23 +155,26 @@ class Main {
             println("Starting...")
             runBlocking { initStuff() }
             println("Done setting up handlers!")
-
             val session = Diffusion.sessions().principal("admin").password("password").open("ws://localhost:8080")
 
             val topJ = Topics::class.java
 
 
-            session.feature(TopicControl::class.java).removeTopics(keyword)
-            session.feature(TopicControl::class.java).removeTopics("count")
 
-            session.feature(topJ).addStream(keyword, JSON::class.java, JsonStream())
-            session.feature(topJ).createTopicView("count", "map >$keyword to count as <value(/info)>")
+            //session.feature(topJ).addStream(keyword, JSON::class.java, JsonStream())
+            //session.feature(topJ).createTopicView("count", "map >$keyword to count as <value(/info)>")
 
-            session.feature(topJ).addStream("count", JSON::class.java, JsonStream())
+            //session.feature(TopicControl::class.java).removeTopics("count")
 
-            session.feature(topJ).subscribe("count")
+            session.feature(topJ).addStream("*count//", JSON::class.java, JsonStream())
+            session.feature(topJ).subscribe("*count//")
+
+            chart = XYChartBuilder().width(1280).height(720).title("Keyword Aggregator Demo").xAxisTitle("Time (hh:mm:ss)").yAxisTitle("Occurrences (Avg per 10 seconds)").build()
+
             println("Subbed!")
             showChart()
+
+
 
 
             Thread.sleep(Long.MAX_VALUE)
