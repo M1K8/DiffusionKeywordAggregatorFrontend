@@ -16,12 +16,9 @@ class Auth : AuthenticationControl.ControlAuthenticator {
         }
     }
 
-    override fun onError(p0: ErrorReason?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun onError(p0: ErrorReason?) {    }
 
     override fun onClose() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
 }
